@@ -28,6 +28,54 @@ const nodes: any[] = [];
 const edges: any[] = [];
 const tagMap: Record<string, string[]> = {}; // tag → article ids
 
+// Pre-fetch all collections
+let allZhArticles: any[] = [];
+let allEnArticles: any[] = [];
+try { allZhArticles = await getCollection('zh-TW'); } catch (e) { console.log('zh-TW collection error:', e); }
+try { allEnArticles = await getCollection('en'); } catch (e) { console.log('en collection error:', e); }
+
+// Fallback: scan filesystem if collections are empty
+if (allZhArticles.length === 0) {
+  try {
+    for (const cat of categories) {
+      const catDir = resolve('src/content/zh-TW', cat);
+      try {
+        const files = await readdir(catDir);
+        for (const file of files) {
+          if (file.endsWith('.md') && !file.startsWith('_')) {
+            const slug = file.replace(/\.md$/, '');
+            const content = await readFile(join(catDir, file), 'utf-8');
+            const titleMatch = content.match(/^title:\s*["']?(.+?)["']?\s*$/m);
+            const tagsMatch = content.match(/^tags:\s*\[(.+?)\]/m);
+            const title = titleMatch ? titleMatch[1] : slug;
+            const tags = tagsMatch ? tagsMatch[1].split(',').map(t => t.trim().replace(/["']/g, '')) : [];
+            allZhArticles.push({ id: `${cat}/${slug}`, data: { title, tags } });
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+}
+if (allEnArticles.length === 0) {
+  try {
+    for (const cat of categories) {
+      const catDir = resolve('src/content/en', cat);
+      try {
+        const files = await readdir(catDir);
+        for (const file of files) {
+          if (file.endsWith('.md') && !file.startsWith('_')) {
+            const slug = file.replace(/\.md$/, '');
+            const content = await readFile(join(catDir, file), 'utf-8');
+            const titleMatch = content.match(/^title:\s*["']?(.+?)["']?\s*$/m);
+            const title = titleMatch ? titleMatch[1] : slug;
+            allEnArticles.push({ id: `${cat}/${slug}`, data: { title, tags: [] } });
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+}
+
 // Center node
 nodes.push({ id: 'taiwan', label: '🇹🇼 Taiwan.md', group: 'center', size: 30 });
 
@@ -63,51 +111,51 @@ for (const cat of categories) {
   });
   edges.push({ source: 'taiwan', target: cat });
 
-  // Chinese article nodes
-  try {
-    const articles = await getCollection(`zh-tw-${cat}` as any);
-    for (const article of articles) {
-      if (!article.id.startsWith('_')) {
-        const nodeId = `${cat}/${article.id}`;
-        nodes.push({
-          id: nodeId,
-          label: article.data.title,
-          group: cat,
-          color: categoryColors[cat],
-          size: 10,
-          url: `/${cat}/${article.id}`
-        });
-        edges.push({ source: cat, target: nodeId });
-        
-        // Build tag connections
-        if (article.data.tags) {
-          for (const tag of article.data.tags) {
-            if (!tagMap[tag]) tagMap[tag] = [];
-            tagMap[tag].push(nodeId);
-          }
-        }
+  // Chinese article nodes (filter from pre-fetched collection)
+  const catArticles = allZhArticles.filter(a => {
+    const parts = a.id.split('/');
+    return parts[0] === cat && !parts[parts.length - 1].startsWith('_');
+  });
+  for (const article of catArticles) {
+    const slug = article.id.split('/').slice(1).join('/').replace(/\.md$/, '');
+    const nodeId = `${cat}/${slug}`;
+    nodes.push({
+      id: nodeId,
+      label: article.data.title,
+      group: cat,
+      color: categoryColors[cat],
+      size: 10,
+      url: `/${cat}/${encodeURIComponent(slug)}`
+    });
+    edges.push({ source: cat, target: nodeId });
+    
+    // Build tag connections
+    if (article.data.tags) {
+      for (const tag of article.data.tags) {
+        if (!tagMap[tag]) tagMap[tag] = [];
+        tagMap[tag].push(nodeId);
       }
     }
-  } catch {}
+  }
   
   // English article nodes
-  try {
-    const enArticles = await getCollection(`en-${cat}` as any);
-    for (const article of enArticles) {
-      if (!article.id.startsWith('_')) {
-        const nodeId = `en/${cat}/${article.id}`;
-        nodes.push({
-          id: nodeId,
-          label: `🌐 ${article.data.title}`,
-          group: cat,
-          color: categoryColors[cat],
-          size: 8,
-          url: `/en/${cat}/${article.id}`
-        });
-        edges.push({ source: cat, target: nodeId });
-      }
-    }
-  } catch {}
+  const enCatArticles = allEnArticles.filter(a => {
+    const parts = a.id.split('/');
+    return parts[0] === cat && !parts[parts.length - 1].startsWith('_');
+  });
+  for (const article of enCatArticles) {
+    const slug = article.id.split('/').slice(1).join('/').replace(/\.md$/, '');
+    const nodeId = `en/${cat}/${slug}`;
+    nodes.push({
+      id: nodeId,
+      label: `🌐 ${article.data.title}`,
+      group: cat,
+      color: categoryColors[cat],
+      size: 8,
+      url: `/en/${cat}/${slug}`
+    });
+    edges.push({ source: cat, target: nodeId });
+  }
 }
 
 // Cross-category edges via shared tags
