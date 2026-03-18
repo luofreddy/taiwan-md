@@ -67,6 +67,7 @@ const navConfig = [
   { path: '/about', label: i18n.nav.about },
   { path: '/contribute', label: i18n.nav.contribute },
   { path: '/resources', label: i18n.nav.resources },
+  {path:'/assets', label:i18n.nav.assets},
   { path: '/projects', label: i18n.nav.projects },
 ].map(item => {
   const fullPath = isEn ? `/en${item.path}` : item.path;
@@ -128,9 +129,13 @@ const navConfig = [
           </a>
         </nav>
         <nav class="nav-mobile" aria-label="行動裝置導航">
-          {navConfig.map(item => (
-            <a href={item.fullPath} class:list={["nav-link", { active: item.active }]} onclick="document.querySelector('.nav-mobile').classList.remove('open')">{item.label}</a>
-          ))}
+          {navConfig.map(item => {
+            if(item.path === '/assets'){
+              return null
+            }
+            return <a href={item.fullPath} class:list={["nav-link", { active: item.active }]} onclick="document.querySelector('.nav-mobile').classList.remove('open')">{item.label}</a>
+
+          })}
           <a href="https://github.com/frank890417/taiwan-md" target="_blank" class="nav-link">GitHub</a>
           <div class="mobile-lang-toggle">
             <span class="mobile-lang-label">🌐 語言 / Language:</span>
